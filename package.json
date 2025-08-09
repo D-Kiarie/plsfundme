@@ -2,9 +2,9 @@
   "name": "roblox-gamepass-api",
   "version": "1.0.0",
   "description": "API to fetch Roblox gamepasses for a user",
-  "main": "index.js",
+  "main": "server.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node server.js"
   },
   "author": "",
   "license": "ISC",
