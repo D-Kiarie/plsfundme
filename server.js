@@ -4,6 +4,9 @@ const fetch = require("node-fetch");
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// A utility function for creating a delay
+const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+
 // NEW: Add a root route to keep the service alive
 app.get("/", (req, res) => {
   res.status(200).json({ message: "Server is alive and running!" });
@@ -61,13 +64,29 @@ app.get("/gamepasses/:username", async (req, res) => {
     const games = await getProfileGames(userId);
     let allPasses = [];
 
-    for (let game of games) {
-      const passes = await getGamePasses(game.id);
-      allPasses.push({
-        gameName: game.name,
-        universeId: game.id,
-        passes: passes
-      });
+    for (const game of games) {
+      try {
+        // Fetch passes for the current game
+        const passes = await getGamePasses(game.id);
+        allPasses.push({
+          gameName: game.name,
+          universeId: game.id,
+          passes: passes
+        });
+        
+        // **IMPROVEMENT**: Wait for 250ms before the next request to avoid rate limits
+        await delay(250); 
+        
+      } catch (gameError) {
+        // **IMPROVEMENT**: If one game fails, log it and continue with the others
+        console.error(`Failed to fetch passes for game ${game.id} (${game.name}). Error:`, gameError.message);
+        // Still add the game to the list, but with an empty passes array
+        allPasses.push({
+          gameName: game.name,
+          universeId: game.id,
+          passes: [] 
+        });
+      }
     }
 
     res.json({
@@ -78,7 +97,7 @@ app.get("/gamepasses/:username", async (req, res) => {
       games: allPasses
     });
   } catch (err) {
-    console.error(err);
+    console.error("A critical error occurred:", err);
     res.status(500).json({ error: "Internal Server Error" });
   }
 });
