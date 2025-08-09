@@ -84,14 +84,13 @@ app.get("/games/:identifier", async (req, res) => {
 
     const games = await getProfileGames(userId);
 
-    // Map the games to the desired format, now with a guaranteed working icon URL
     const gamesWithIcons = games.map(game => ({
       universeId: game.id,
       placeId: game.rootPlace ? game.rootPlace.id : null,
       name: game.name,
       creator: game.creator,
       placeVisits: game.placeVisits,
-      // **FIX**: Construct a rbxthumb URL that works in-game.
+      // **FIX**: Changed type back to GameIcon as requested.
       iconUrl: `rbxthumb://type=GameIcon&id=${game.id}&w=150&h=150`
     }));
 
