@@ -31,7 +31,6 @@ async function getUserId(username) {
   return null;
 }
 
-// CORRECTED: This function now correctly returns the raw game data from the API.
 async function getProfileGames(userId) {
   let games = [];
   let cursor = "";
@@ -46,26 +45,6 @@ async function getProfileGames(userId) {
   } while (cursor);
   return games;
 }
-
-async function getGameIcons(universeIds) {
-  if (!universeIds || universeIds.length === 0) {
-    return {};
-  }
-  const idsString = universeIds.join(',');
-  const url = `https://thumbnails.roblox.com/v1/games/icons?universeIds=${idsString}&size=150x150&format=Png&isCircular=false`;
-  const res = await fetch(url);
-  const data = await res.json();
-  const iconMap = {};
-  if (data.data) {
-    data.data.forEach(iconInfo => {
-      if (iconInfo.state === 'Completed') {
-        iconMap[iconInfo.targetId] = iconInfo.imageUrl;
-      }
-    });
-  }
-  return iconMap;
-}
-
 
 async function getGamePasses(universeId) {
   let passes = [];
@@ -104,18 +83,16 @@ app.get("/games/:identifier", async (req, res) => {
     }
 
     const games = await getProfileGames(userId);
-    // CORRECTED: We now correctly get the universe IDs from the 'id' property of each game.
-    const universeIds = games.map(game => game.id);
-    const iconMap = await getGameIcons(universeIds);
 
+    // Map the games to the desired format, now with a guaranteed working icon URL
     const gamesWithIcons = games.map(game => ({
       universeId: game.id,
       placeId: game.rootPlace ? game.rootPlace.id : null,
       name: game.name,
       creator: game.creator,
       placeVisits: game.placeVisits,
-      // CORRECTED: We look up the icon using the correct universe ID.
-      iconUrl: iconMap[game.id] || null
+      // **FIX**: Construct a rbxthumb URL that works in-game.
+      iconUrl: `rbxthumb://type=GameIcon&id=${game.id}&w=150&h=150`
     }));
 
     res.json({
