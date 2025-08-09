@@ -4,7 +4,11 @@ const fetch = require("node-fetch");
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Get Roblox User ID from username
+// NEW: Add a root route to keep the service alive
+app.get("/", (req, res) => {
+  res.status(200).json({ message: "Server is alive and running!" });
+});
+
 async function getUserId(username) {
   const res = await fetch(`https://users.roblox.com/v1/usernames/users`, {
     method: "POST",
@@ -18,7 +22,6 @@ async function getUserId(username) {
   return null;
 }
 
-// Get all profile-owned games (not group games)
 async function getProfileGames(userId) {
   let games = [];
   let cursor = "";
@@ -26,7 +29,6 @@ async function getProfileGames(userId) {
     const res = await fetch(`https://games.roblox.com/v2/users/${userId}/games?sortOrder=Asc&limit=50&cursor=${cursor}`);
     const data = await res.json();
     if (data.data) {
-      // Filter out group-owned games
       const profileGames = data.data.filter(game => game.creator.type === "User");
       games = games.concat(profileGames);
     }
@@ -35,7 +37,6 @@ async function getProfileGames(userId) {
   return games;
 }
 
-// Get gamepasses for a specific universe
 async function getGamePasses(universeId) {
   let passes = [];
   let cursor = "";
@@ -48,16 +49,16 @@ async function getGamePasses(universeId) {
   return passes;
 }
 
-// Route: Get all gamepasses for a user's profile games
 app.get("/gamepasses/:username", async (req, res) => {
   try {
     const username = req.params.username;
     const userId = await getUserId(username);
 
-    if (!userId) return res.status(404).json({ error: "User not found" });
+    if (!userId) {
+        return res.status(404).json({ error: "User not found" });
+    }
 
     const games = await getProfileGames(userId);
-
     let allPasses = [];
 
     for (let game of games) {
