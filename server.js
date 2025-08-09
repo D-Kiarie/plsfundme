@@ -1,22 +1,19 @@
 const express = require("express");
 const fetch = require("node-fetch");
-const cors = require("cors"); // 1. Import the cors package
+const cors = require("cors");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// 2. Set up CORS options
 const corsOptions = {
   origin: 'https://d-kiarie.github.io', // Allow requests only from your frontend's domain
   optionsSuccessStatus: 200
 };
 
-app.use(cors(corsOptions)); // 3. Use the cors middleware
+app.use(cors(corsOptions));
 
-// A utility function for creating a delay
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-// Add a root route to keep the service alive
 app.get("/", (req, res) => {
   res.status(200).json({ message: "Server is alive and running!" });
 });
@@ -49,6 +46,27 @@ async function getProfileGames(userId) {
   return games;
 }
 
+// NEW: Function to get game icons in a single batch
+async function getGameIcons(universeIds) {
+  if (!universeIds || universeIds.length === 0) {
+    return {};
+  }
+  const idsString = universeIds.join(',');
+  const url = `https://thumbnails.roblox.com/v1/games/icons?universeIds=${idsString}&size=150x150&format=Png&isCircular=false`;
+  const res = await fetch(url);
+  const data = await res.json();
+  const iconMap = {};
+  if (data.data) {
+    data.data.forEach(iconInfo => {
+      if (iconInfo.state === 'Completed') {
+        iconMap[iconInfo.targetId] = iconInfo.imageUrl;
+      }
+    });
+  }
+  return iconMap;
+}
+
+
 async function getGamePasses(universeId) {
   let passes = [];
   let cursor = "";
@@ -61,7 +79,58 @@ async function getGamePasses(universeId) {
   return passes;
 }
 
-// Handles both username and user ID
+// NEW: Route for listing a player's games with icons
+app.get("/games/:identifier", async (req, res) => {
+  try {
+    const { identifier } = req.params;
+    let userId;
+    let username;
+
+    if (/^\d+$/.test(identifier)) {
+      userId = identifier;
+      const userResponse = await fetch(`https://users.roblox.com/v1/users/${userId}`);
+      if (userResponse.ok) {
+        const userData = await userResponse.json();
+        username = userData.name;
+      } else {
+        return res.status(404).json({ error: `User with ID ${userId} not found.` });
+      }
+    } else {
+      username = identifier;
+      userId = await getUserId(username);
+    }
+
+    if (!userId) {
+      return res.status(404).json({ error: `User with username "${username}" not found.` });
+    }
+
+    const games = await getProfileGames(userId);
+    const universeIds = games.map(game => game.id);
+    const iconMap = await getGameIcons(universeIds);
+
+    const gamesWithIcons = games.map(game => ({
+      id: game.id,
+      name: game.name,
+      creator: game.creator,
+      placeVisits: game.placeVisits,
+      iconUrl: iconMap[game.id] || null // Add the icon URL to each game object
+    }));
+
+    res.json({
+      username: username,
+      userId: userId,
+      totalGames: games.length,
+      games: gamesWithIcons
+    });
+
+  } catch (err) {
+    console.error("A critical error occurred while fetching games:", err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+
+// Route for getting gamepasses
 app.get("/gamepasses/:identifier", async (req, res) => {
   try {
     const { identifier } = req.params;
