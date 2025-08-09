@@ -39,12 +39,19 @@ async function getProfileGames(userId) {
     const data = await res.json();
     if (data.data) {
       const profileGames = data.data.filter(game => game.creator.type === "User");
-      games = games.concat(profileGames);
+      games = games.concat(profileGames.map(g => ({
+        id: g.id, // placeId
+        name: g.name,
+        creator: g.creator,
+        placeVisits: g.placeVisits,
+        universeId: g.universeId // <-- NEW: store universeId
+      })));
     }
     cursor = data.nextPageCursor || "";
   } while (cursor);
   return games;
 }
+
 
 // NEW: Function to get game icons in a single batch
 async function getGameIcons(universeIds) {
@@ -59,12 +66,13 @@ async function getGameIcons(universeIds) {
   if (data.data) {
     data.data.forEach(iconInfo => {
       if (iconInfo.state === 'Completed') {
-        iconMap[iconInfo.targetId] = iconInfo.imageUrl;
+        iconMap[iconInfo.targetId] = iconInfo.imageUrl; // This should now be tr.rbxcdn.com/...
       }
     });
   }
   return iconMap;
 }
+
 
 
 async function getGamePasses(universeId) {
@@ -105,15 +113,15 @@ app.get("/games/:identifier", async (req, res) => {
     }
 
     const games = await getProfileGames(userId);
-    const universeIds = games.map(game => game.id);
+    const universeIds = games.map(game => game.universeId);
     const iconMap = await getGameIcons(universeIds);
 
     const gamesWithIcons = games.map(game => ({
-      id: game.id,
-      name: game.name,
-      creator: game.creator,
-      placeVisits: game.placeVisits,
-      iconUrl: iconMap[game.id] || null // Add the icon URL to each game object
+        id: game.id,
+        name: game.name,
+        creator: game.creator,
+        placeVisits: game.placeVisits,
+        iconUrl: iconMap[game.universeId] || null
     }));
 
     res.json({
