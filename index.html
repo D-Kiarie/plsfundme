@@ -79,6 +79,10 @@
       resultsDiv.innerHTML = `<div class="glass border border-red-700 text-red-300 px-4 py-3 rounded-lg text-center">${message}</div>`;
     }
 
+    function formatNumber(num) {
+      return num.toLocaleString();
+    }
+
     function displayResults(data) {
       if (data.games.length === 0) {
         resultsDiv.innerHTML = `<div class="glass p-4 rounded-lg text-center">No profile-owned games found for this user.</div>`;
@@ -88,11 +92,13 @@
       let html = `
         <div class="glass p-5 rounded-xl shadow-lg space-y-2">
           <div class="flex items-center gap-4">
-            <img src="https://www.roblox.com/headshot-thumbnail/image?userId=${data.userId}&width=150&height=150&format=png" class="w-16 h-16 rounded-full border-2 border-cyan-400">
+            <a href="https://www.roblox.com/users/${data.userId}/profile" target="_blank">
+              <img src="https://www.roblox.com/headshot-thumbnail/image?userId=${data.userId}&width=150&height=150&format=png" onerror="this.src='https://tr.rbxcdn.com/180x180/Avatar.png'" class="w-16 h-16 rounded-full border-2 border-cyan-400">
+            </a>
             <div>
               <h2 class="text-2xl font-bold text-cyan-400">${data.username}</h2>
-              <p class="text-gray-300">User ID: ${data.userId}</p>
-              <p class="text-gray-400">Found <span class="text-cyan-300 font-semibold">${data.totalPasses}</span> passes across <span class="text-cyan-300 font-semibold">${data.totalGames}</span> games.</p>
+              <p class="text-gray-300">User ID: ${formatNumber(data.userId)}</p>
+              <p class="text-gray-400">Found <span class="text-cyan-300 font-semibold">${formatNumber(data.totalPasses)}</span> passes across <span class="text-cyan-300 font-semibold">${formatNumber(data.totalGames)}</span> games.</p>
             </div>
           </div>
         </div>
@@ -106,7 +112,7 @@
                 <h3 class="text-lg font-semibold">${game.gameName}</h3>
                 <a href="https://www.roblox.com/games/${game.universeId}" target="_blank" class="text-sm text-cyan-400 hover:underline">View Game</a>
               </div>
-              <p class="text-sm text-gray-400 mb-4">Universe ID: ${game.universeId}</p>
+              <p class="text-sm text-gray-400 mb-4">Universe ID: ${formatNumber(game.universeId)}</p>
               <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
           `;
           game.passes.forEach(pass => {
@@ -114,7 +120,7 @@
               <div class="glass p-4 rounded-lg hover:scale-105 transition-transform duration-200">
                 <p class="font-semibold text-white truncate">${pass.name}</p>
                 <span class="mt-1 inline-block text-xs font-bold px-2 py-1 rounded-full ${pass.price ? 'bg-green-500/20 text-green-300' : 'bg-red-500/20 text-red-300'}">
-                  ${pass.price ? `${pass.price} Robux` : 'Off-sale'}
+                  ${pass.price ? `${formatNumber(pass.price)} Robux` : 'Off-sale'}
                 </span>
               </div>
             `;
