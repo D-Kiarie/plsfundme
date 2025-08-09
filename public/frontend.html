@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Roblox Gamepass Finder</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white flex items-center justify-center min-h-screen">
+    <div class="w-full max-w-3xl mx-auto p-6 md:p-8 bg-gray-800 rounded-xl shadow-lg">
+        <h1 class="text-3xl font-bold text-center mb-2 text-cyan-400">Roblox Gamepass Finder</h1>
+        <p class="text-center text-gray-400 mb-6">Enter a Roblox username to find all their gamepasses from profile-owned games.</p>
+        
+        <div class="flex flex-col sm:flex-row gap-3 mb-6">
+            <input type="text" id="usernameInput" placeholder="Enter Roblox username..." class="flex-grow bg-gray-700 border border-gray-600 text-white rounded-lg px-4 py-3 focus:ring-2 focus:ring-cyan-500 focus:outline-none transition">
+            <button id="fetchButton" class="bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-3 px-6 rounded-lg transition duration-300 ease-in-out transform hover:scale-105">
+                Search
+            </button>
+        </div>
+
+        <div id="loader" class="hidden text-center my-8">
+            <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-400"></div>
+            <p class="mt-2 text-gray-400">Fetching data...</p>
+        </div>
+
+        <div id="results" class="space-y-4"></div>
+    </div>
+
+    <script>
+        const usernameInput = document.getElementById('usernameInput');
+        const fetchButton = document.getElementById('fetchButton');
+        const resultsDiv = document.getElementById('results');
+        const loader = document.getElementById('loader');
+
+        // Allow pressing Enter to search
+        usernameInput.addEventListener('keyup', (event) => {
+            if (event.key === 'Enter') {
+                fetchButton.click();
+            }
+        });
+
+        fetchButton.addEventListener('click', async () => {
+            const username = usernameInput.value.trim();
+            if (!username) {
+                displayError('Please enter a username.');
+                return;
+            }
+
+            resultsDiv.innerHTML = '';
+            loader.classList.remove('hidden');
+
+            try {
+                // IMPORTANT: When you deploy, change this URL to your Render URL.
+                // For local testing, it points to your local server.
+                const response = await fetch(`/gamepasses/${username}`);
+                
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || `Error: ${response.status}`);
+                }
+
+                const data = await response.json();
+                displayResults(data);
+
+            } catch (error) {
+                displayError(error.message);
+            } finally {
+                loader.classList.add('hidden');
+            }
+        });
+
+        function displayError(message) {
+            resultsDiv.innerHTML = `<div class="bg-red-900 border border-red-700 text-red-300 px-4 py-3 rounded-lg text-center">${message}</div>`;
+        }
+
+        function displayResults(data) {
+            if (data.games.length === 0) {
+                resultsDiv.innerHTML = `<div class="bg-gray-700 p-4 rounded-lg text-center">No profile-owned games found for this user.</div>`;
+                return;
+            }
+
+            let html = `
+                <div class="bg-gray-700/50 p-4 rounded-lg">
+                    <h2 class="text-xl font-bold text-cyan-400">${data.username}</h2>
+                    <p class="text-gray-400">User ID: ${data.userId}</p>
+                    <p class="text-gray-400">Found ${data.totalPasses} passes across ${data.totalGames} games.</p>
+                </div>
+            `;
+
+            data.games.forEach(game => {
+                if(game.passes.length > 0) {
+                    html += `
+                        <div class="bg-gray-700 p-4 rounded-lg">
+                            <h3 class="text-lg font-semibold">${game.gameName}</h3>
+                            <p class="text-sm text-gray-500 mb-3">Universe ID: ${game.universeId}</p>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                    `;
+                    game.passes.forEach(pass => {
+                        html += `
+                            <div class="bg-gray-600 p-3 rounded-md">
+                                <p class="font-medium text-white">${pass.name}</p>
+                                <p class="text-sm text-green-400">${pass.price ? `${pass.price} Robux` : 'Off-sale'}</p>
+                            </div>
+                        `;
+                    });
+                    html += `</div></div>`;
+                }
+            });
+
+            resultsDiv.innerHTML = html;
+        }
+    </script>
+</body>
+</html>
