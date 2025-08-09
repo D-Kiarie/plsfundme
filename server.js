@@ -31,6 +31,7 @@ async function getUserId(username) {
   return null;
 }
 
+// CORRECTED: This function now correctly returns the raw game data from the API.
 async function getProfileGames(userId) {
   let games = [];
   let cursor = "";
@@ -39,21 +40,13 @@ async function getProfileGames(userId) {
     const data = await res.json();
     if (data.data) {
       const profileGames = data.data.filter(game => game.creator.type === "User");
-      games = games.concat(profileGames.map(g => ({
-        id: g.id, // placeId
-        name: g.name,
-        creator: g.creator,
-        placeVisits: g.placeVisits,
-        universeId: g.universeId // <-- NEW: store universeId
-      })));
+      games = games.concat(profileGames);
     }
     cursor = data.nextPageCursor || "";
   } while (cursor);
   return games;
 }
 
-
-// NEW: Function to get game icons in a single batch
 async function getGameIcons(universeIds) {
   if (!universeIds || universeIds.length === 0) {
     return {};
@@ -66,13 +59,12 @@ async function getGameIcons(universeIds) {
   if (data.data) {
     data.data.forEach(iconInfo => {
       if (iconInfo.state === 'Completed') {
-        iconMap[iconInfo.targetId] = iconInfo.imageUrl; // This should now be tr.rbxcdn.com/...
+        iconMap[iconInfo.targetId] = iconInfo.imageUrl;
       }
     });
   }
   return iconMap;
 }
-
 
 
 async function getGamePasses(universeId) {
@@ -87,7 +79,6 @@ async function getGamePasses(universeId) {
   return passes;
 }
 
-// NEW: Route for listing a player's games with icons
 app.get("/games/:identifier", async (req, res) => {
   try {
     const { identifier } = req.params;
@@ -113,15 +104,18 @@ app.get("/games/:identifier", async (req, res) => {
     }
 
     const games = await getProfileGames(userId);
-    const universeIds = games.map(game => game.universeId);
+    // CORRECTED: We now correctly get the universe IDs from the 'id' property of each game.
+    const universeIds = games.map(game => game.id);
     const iconMap = await getGameIcons(universeIds);
 
     const gamesWithIcons = games.map(game => ({
-        id: game.id,
-        name: game.name,
-        creator: game.creator,
-        placeVisits: game.placeVisits,
-        iconUrl: iconMap[game.universeId] || null
+      universeId: game.id,
+      placeId: game.rootPlace ? game.rootPlace.id : null,
+      name: game.name,
+      creator: game.creator,
+      placeVisits: game.placeVisits,
+      // CORRECTED: We look up the icon using the correct universe ID.
+      iconUrl: iconMap[game.id] || null
     }));
 
     res.json({
@@ -138,7 +132,6 @@ app.get("/games/:identifier", async (req, res) => {
 });
 
 
-// Route for getting gamepasses
 app.get("/gamepasses/:identifier", async (req, res) => {
   try {
     const { identifier } = req.params;
