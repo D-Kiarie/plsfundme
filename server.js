@@ -1,8 +1,17 @@
 const express = require("express");
 const fetch = require("node-fetch");
+const cors = require("cors"); // 1. Import the cors package
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// 2. Set up CORS options
+const corsOptions = {
+  origin: 'https://d-kiarie.github.io', // Allow requests only from your frontend's domain
+  optionsSuccessStatus: 200
+};
+
+app.use(cors(corsOptions)); // 3. Use the cors middleware
 
 // A utility function for creating a delay
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -52,17 +61,15 @@ async function getGamePasses(universeId) {
   return passes;
 }
 
-// **UPDATED ROUTE**: Handles both username and user ID
+// Handles both username and user ID
 app.get("/gamepasses/:identifier", async (req, res) => {
   try {
     const { identifier } = req.params;
     let userId;
     let username;
 
-    // Check if the identifier is purely numeric (a user ID)
     if (/^\d+$/.test(identifier)) {
       userId = identifier;
-      // Fetch the username for a complete response
       const userResponse = await fetch(`https://users.roblox.com/v1/users/${userId}`);
       if (userResponse.ok) {
         const userData = await userResponse.json();
@@ -71,7 +78,6 @@ app.get("/gamepasses/:identifier", async (req, res) => {
         return res.status(404).json({ error: `User with ID ${userId} not found.` });
       }
     } else {
-      // Otherwise, treat it as a username
       username = identifier;
       userId = await getUserId(username);
     }
