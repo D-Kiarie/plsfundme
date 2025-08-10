@@ -22,7 +22,7 @@ async function robustFetch(url, options = {}, retries = 5, delayMs = 500) {
     ...options,
     headers: {
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-      // The cookie is included for endpoints that might benefit from it, but not strictly required for the public group games call
+      // The cookie is included for endpoints that might benefit from it
       'Cookie': `.ROBLOSECURITY=${ROBLOX_COOKIE}`,
       ...options.headers,
     }
@@ -84,36 +84,27 @@ async function getProfileGames(userId) {
 }
 
 async function getOwnedGroups(userId) {
-    let ownedGroups = [];
-    let cursor = "";
-    do {
-        const url = `https://groups.roblox.com/v2/users/${userId}/groups/roles?cursor=${cursor}&limit=100&sortOrder=Asc`;
-        const data = await robustFetch(url);
-        if (data && data.data) {
-            data.data.forEach(item => {
-                if (item.role.name === 'Owner') {
-                    ownedGroups.push(item.group);
-                }
-            });
-        }
-        cursor = data ? data.nextPageCursor : "";
-    } while (cursor);
+    const url = `https://groups.roblox.com/v1/users/${userId}/groups/roles`;
+    const data = await robustFetch(url);
+    const ownedGroups = [];
+    if (data && data.data) {
+        data.data.forEach(item => {
+            // In v1, the owner has the highest rank in the group, which is 255
+            if (item.role.rank === 255) {
+                ownedGroups.push(item.group);
+            }
+        });
+    }
     return ownedGroups;
 }
 
 async function getAllUserGroups(userId) {
+    const url = `https://groups.roblox.com/v1/users/${userId}/groups/roles`;
+    const data = await robustFetch(url);
     let allGroups = [];
-    let cursor = "";
-    do {
-        const url = `https://groups.roblox.com/v2/users/${userId}/groups/roles?cursor=${cursor}&limit=100&sortOrder=Asc`;
-        const data = await robustFetch(url);
-        if (data && data.data) {
-            data.data.forEach(item => {
-                allGroups.push(item.group);
-            });
-        }
-        cursor = data ? data.nextPageCursor : "";
-    } while (cursor);
+    if (data && data.data) {
+        allGroups = data.data.map(item => item.group);
+    }
     return allGroups;
 }
 
