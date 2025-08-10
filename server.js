@@ -19,6 +19,8 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 async function robustFetch(url, options = {}, retries = 5, delayMs = 500) {
   const finalOptions = {
     ...options,
+    // Add a redirect handling policy to prevent POST requests from becoming GET requests
+    redirect: 'follow', 
     headers: {
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
       'Cookie': `.ROBLOSECURITY=${ROBLOX_COOKIE}`,
