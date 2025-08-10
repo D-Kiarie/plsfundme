@@ -65,6 +65,28 @@ async function getUserId(username) {
   return null;
 }
 
+async function getGameThumbnails(universeIds) {
+    const url = `https://thumbnails.roblox.com/v1/games/multiget/thumbnails`;
+    const body = universeIds.map(id => ({
+        universeId: id,
+        size: "768x432"
+    }));
+    const data = await robustFetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+    });
+    const thumbnailMap = {};
+    if (data && data.data) {
+        data.data.forEach(thumb => {
+            if (thumb.state === "Completed") {
+                thumbnailMap[thumb.universeId] = thumb.imageUrl;
+            }
+        });
+    }
+    return thumbnailMap;
+}
+
 async function getProfileGames(userId) {
   let games = [];
   let cursor = "";
@@ -173,14 +195,17 @@ app.get("/games/:identifier", async (req, res) => {
     }
 
     const allGames = profileGames.concat(allGroupGames);
+    const universeIds = allGames.map(game => game.id);
+    const thumbnails = await getGameThumbnails(universeIds);
 
-    const gamesWithIcons = allGames.map(game => ({
+    const gamesWithAssets = allGames.map(game => ({
       universeId: game.id,
       placeId: game.rootPlace ? game.rootPlace.id : null,
       name: game.name,
       creator: game.creator,
       placeVisits: game.placeVisits,
-      iconUrl: `rbxthumb://type=GameIcon&id=${game.id}&w=150&h=150`
+      iconUrl: `rbxthumb://type=GameIcon&id=${game.id}&w=150&h=150`,
+      thumbnailUrl: thumbnails[game.id] || null
     }));
 
     res.json({
@@ -188,7 +213,7 @@ app.get("/games/:identifier", async (req, res) => {
       userId: userId,
       totalGames: allGames.length,
       ownedGroups: ownedGroups,
-      games: gamesWithIcons
+      games: gamesWithAssets
     });
 
   } catch (err) {
@@ -231,6 +256,9 @@ app.get("/groups/:identifier", async (req, res) => {
         for (const group of ownedGroups) {
             try {
                 const games = await getGroupGames(group.id);
+                const universeIds = games.map(game => game.id);
+                const thumbnails = await getGameThumbnails(universeIds);
+
                 groupsWithGames.push({
                     ...group,
                     games: games.map(game => ({
@@ -239,7 +267,8 @@ app.get("/groups/:identifier", async (req, res) => {
                       name: game.name,
                       creator: game.creator,
                       placeVisits: game.placeVisits,
-                      iconUrl: `rbxthumb://type=GameIcon&id=${game.id}&w=150&h=150`
+                      iconUrl: `rbxthumb://type=GameIcon&id=${game.id}&w=150&h=150`,
+                      thumbnailUrl: thumbnails[game.id] || null
                     }))
                 });
                 await delay(250);
@@ -295,6 +324,9 @@ app.get("/all-groups/:identifier", async (req, res) => {
         for (const group of allGroups) {
             try {
                 const games = await getGroupGames(group.id);
+                const universeIds = games.map(game => game.id);
+                const thumbnails = await getGameThumbnails(universeIds);
+
                 groupsWithGames.push({
                     ...group,
                     games: games.map(game => ({
@@ -303,7 +335,8 @@ app.get("/all-groups/:identifier", async (req, res) => {
                       name: game.name,
                       creator: game.creator,
                       placeVisits: game.placeVisits,
-                      iconUrl: `rbxthumb://type=GameIcon&id=${game.id}&w=150&h=150`
+                      iconUrl: `rbxthumb://type=GameIcon&id=${game.id}&w=150&h=150`,
+                      thumbnailUrl: thumbnails[game.id] || null
                     }))
                 });
                 await delay(250);
