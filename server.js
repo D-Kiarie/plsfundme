@@ -66,21 +66,16 @@ async function getUserId(username) {
 }
 
 async function getGameThumbnails(universeIds) {
-    const url = `https://thumbnails.roblox.com/v1/games/multiget/thumbnails`;
-    const body = universeIds.map(id => ({
-        universeId: id,
-        size: "768x432"
-    }));
-    const data = await robustFetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body)
-    });
+    if (!universeIds || universeIds.length === 0) {
+        return {};
+    }
+    const url = `https://thumbnails.roblox.com/v1/games/thumbnails?universeIds=${universeIds.join(',')}&size=768x432&format=Png`;
+    const data = await robustFetch(url);
     const thumbnailMap = {};
     if (data && data.data) {
         data.data.forEach(thumb => {
             if (thumb.state === "Completed") {
-                thumbnailMap[thumb.universeId] = thumb.imageUrl;
+                thumbnailMap[thumb.targetId] = thumb.imageUrl;
             }
         });
     }
