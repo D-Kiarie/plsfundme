@@ -31,6 +31,7 @@ async function getUserId(username) {
   return null;
 }
 
+// Fetches games created by the user directly
 async function getProfileGames(userId) {
   let games = [];
   let cursor = "";
@@ -45,6 +46,37 @@ async function getProfileGames(userId) {
   } while (cursor);
   return games;
 }
+
+// NEW: Fetches all groups a user is in and filters for owned groups
+async function getOwnedGroups(userId) {
+    const res = await fetch(`https://groups.roblox.com/v2/users/${userId}/groups/roles`);
+    const data = await res.json();
+    const ownedGroups = [];
+    if (data.data) {
+        data.data.forEach(item => {
+            if (item.role.name === 'Owner') {
+                ownedGroups.push(item.group);
+            }
+        });
+    }
+    return ownedGroups;
+}
+
+// NEW: Fetches games for a specific group
+async function getGroupGames(groupId) {
+    let games = [];
+    let cursor = "";
+    do {
+        const res = await fetch(`https://games.roblox.com/v2/groups/${groupId}/games?sortOrder=Asc&limit=50&cursor=${cursor}`);
+        const data = await res.json();
+        if (data.data) {
+            games = games.concat(data.data);
+        }
+        cursor = data.nextPageCursor || "";
+    } while (cursor);
+    return games;
+}
+
 
 async function getGamePasses(universeId) {
   let passes = [];
@@ -82,22 +114,32 @@ app.get("/games/:identifier", async (req, res) => {
       return res.status(404).json({ error: `User with username "${username}" not found.` });
     }
 
-    const games = await getProfileGames(userId);
+    // Fetch both profile and group games
+    const profileGames = await getProfileGames(userId);
+    const ownedGroups = await getOwnedGroups(userId);
+    
+    let allGroupGames = [];
+    for (const group of ownedGroups) {
+        const groupGames = await getGroupGames(group.id);
+        allGroupGames = allGroupGames.concat(groupGames);
+    }
 
-    const gamesWithIcons = games.map(game => ({
+    const allGames = profileGames.concat(allGroupGames);
+
+    const gamesWithIcons = allGames.map(game => ({
       universeId: game.id,
       placeId: game.rootPlace ? game.rootPlace.id : null,
       name: game.name,
       creator: game.creator,
       placeVisits: game.placeVisits,
-      // **FIX**: Changed type back to GameIcon as requested.
       iconUrl: `rbxthumb://type=GameIcon&id=${game.id}&w=150&h=150`
     }));
 
     res.json({
       username: username,
       userId: userId,
-      totalGames: games.length,
+      totalGames: allGames.length,
+      ownedGroups: ownedGroups, // Also return the list of owned groups
       games: gamesWithIcons
     });
 
@@ -132,10 +174,19 @@ app.get("/gamepasses/:identifier", async (req, res) => {
       return res.status(404).json({ error: `User with username "${username}" not found.` });
     }
 
-    const games = await getProfileGames(userId);
+    const profileGames = await getProfileGames(userId);
+    const ownedGroups = await getOwnedGroups(userId);
+    
+    let allGroupGames = [];
+    for (const group of ownedGroups) {
+        const groupGames = await getGroupGames(group.id);
+        allGroupGames = allGroupGames.concat(groupGames);
+    }
+
+    const allGames = profileGames.concat(allGroupGames);
     let allPasses = [];
 
-    for (const game of games) {
+    for (const game of allGames) {
       try {
         const passes = await getGamePasses(game.id);
         allPasses.push({
@@ -157,7 +208,7 @@ app.get("/gamepasses/:identifier", async (req, res) => {
     res.json({
       username: username,
       userId: userId,
-      totalGames: games.length,
+      totalGames: allGames.length,
       totalPasses: allPasses.reduce((sum, g) => sum + g.passes.length, 0),
       games: allPasses
     });
