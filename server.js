@@ -47,7 +47,7 @@ async function getProfileGames(userId) {
   return games;
 }
 
-// NEW: Fetches all groups a user is in and filters for owned groups
+// Fetches all groups a user is in and filters for owned groups
 async function getOwnedGroups(userId) {
     const res = await fetch(`https://groups.roblox.com/v2/users/${userId}/groups/roles`);
     const data = await res.json();
@@ -62,7 +62,7 @@ async function getOwnedGroups(userId) {
     return ownedGroups;
 }
 
-// NEW: Fetches games for a specific group
+// Fetches games for a specific group
 async function getGroupGames(groupId) {
     let games = [];
     let cursor = "";
@@ -114,14 +114,25 @@ app.get("/games/:identifier", async (req, res) => {
       return res.status(404).json({ error: `User with username "${username}" not found.` });
     }
 
-    // Fetch both profile and group games
+    // Fetch both profile and group games, now with error handling
     const profileGames = await getProfileGames(userId);
-    const ownedGroups = await getOwnedGroups(userId);
+    let ownedGroups = [];
+    try {
+        ownedGroups = await getOwnedGroups(userId);
+    } catch(err) {
+        console.error("Failed to fetch owned groups:", err.message);
+    }
     
     let allGroupGames = [];
     for (const group of ownedGroups) {
-        const groupGames = await getGroupGames(group.id);
-        allGroupGames = allGroupGames.concat(groupGames);
+        try {
+            const groupGames = await getGroupGames(group.id);
+            allGroupGames = allGroupGames.concat(groupGames);
+            await delay(100); // Add a small delay to be safe
+        } catch (groupError) {
+            console.error(`Failed to fetch games for group ${group.id} (${group.name}). Error:`, groupError.message);
+            // Continue to the next group without crashing
+        }
     }
 
     const allGames = profileGames.concat(allGroupGames);
@@ -175,12 +186,22 @@ app.get("/gamepasses/:identifier", async (req, res) => {
     }
 
     const profileGames = await getProfileGames(userId);
-    const ownedGroups = await getOwnedGroups(userId);
+    let ownedGroups = [];
+    try {
+        ownedGroups = await getOwnedGroups(userId);
+    } catch(err) {
+        console.error("Failed to fetch owned groups:", err.message);
+    }
     
     let allGroupGames = [];
     for (const group of ownedGroups) {
-        const groupGames = await getGroupGames(group.id);
-        allGroupGames = allGroupGames.concat(groupGames);
+        try {
+            const groupGames = await getGroupGames(group.id);
+            allGroupGames = allGroupGames.concat(groupGames);
+            await delay(100);
+        } catch (groupError) {
+            console.error(`Failed to fetch games for group ${group.id} (${group.name}). Error:`, groupError.message);
+        }
     }
 
     const allGames = profileGames.concat(allGroupGames);
