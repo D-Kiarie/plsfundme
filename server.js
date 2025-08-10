@@ -6,7 +6,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 const corsOptions = {
-  origin: 'https://d-kiarie.github.io', // Allow requests only from your frontend's domain
+  origin: 'https://d-kiarie.github.io',
   optionsSuccessStatus: 200
 };
 
@@ -14,7 +14,6 @@ app.use(cors(corsOptions));
 
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-// NEW: A more resilient fetch function with retry logic
 async function robustFetch(url, options, retries = 5, delayMs = 500) {
   for (let i = 0; i <= retries; i++) {
     try {
@@ -22,16 +21,13 @@ async function robustFetch(url, options, retries = 5, delayMs = 500) {
         if (res.ok) {
             return await res.json();
         }
-        // Don't retry on client errors like 404 Not Found
         if (res.status >= 400 && res.status < 500) {
             throw new Error(`Client error: ${res.status}`);
         }
-        // For server errors (5xx), wait and retry
         console.warn(`Request to ${url} failed with status ${res.status}. Retrying in ${delayMs * (i + 1)}ms...`);
         await delay(delayMs * (i + 1));
     } catch (error) {
         if (i === retries) {
-            // If all retries fail, throw the final error
             throw new Error(`Failed to fetch from ${url} after ${retries + 1} attempts: ${error.message}`);
         }
         await delay(delayMs * (i + 1));
@@ -56,7 +52,6 @@ async function getUserId(username) {
   return null;
 }
 
-// Fetches games created by the user directly
 async function getProfileGames(userId) {
   let games = [];
   let cursor = "";
@@ -71,7 +66,6 @@ async function getProfileGames(userId) {
   return games;
 }
 
-// Fetches all groups a user is in and filters for owned groups.
 async function getOwnedGroups(userId) {
     let ownedGroups = [];
     let cursor = "";
@@ -89,22 +83,13 @@ async function getOwnedGroups(userId) {
     return ownedGroups;
 }
 
-// Fetches games (universes) for a specific group, including private ones
-async function getGroupGames(groupId, groupName) {
+async function getGroupGames(groupId) {
     let games = [];
     let cursor = "";
     do {
-        // Note: This endpoint may require authentication (a .ROBLOSECURITY cookie) to see non-public games.
-        const data = await robustFetch(`https://develop.roblox.com/v1/groups/${groupId}/universes?sortOrder=Asc&limit=50&cursor=${cursor}`);
+        const data = await robustFetch(`https://games.roblox.com/v2/groups/${groupId}/games?sortOrder=Asc&limit=50&cursor=${cursor}`);
         if (data && data.data) {
-            // Map the universe data to the same structure as user games
-            games = games.concat(data.data.map(universe => ({
-                id: universe.id,
-                name: universe.name,
-                rootPlace: { id: universe.rootPlaceId },
-                creator: { type: "Group", id: groupId, name: groupName },
-                placeVisits: universe.visits
-            })));
+            games = games.concat(data.data);
         }
         cursor = data ? data.nextPageCursor : "";
     } while (cursor);
@@ -147,7 +132,6 @@ app.get("/games/:identifier", async (req, res) => {
       return res.status(404).json({ error: `User with username "${username}" not found.` });
     }
 
-    // Fetch both profile and group games, now with error handling
     const profileGames = await getProfileGames(userId);
     let ownedGroups = [];
     try {
@@ -159,12 +143,10 @@ app.get("/games/:identifier", async (req, res) => {
     let allGroupGames = [];
     for (const group of ownedGroups) {
         try {
-            // Pass both group ID and name to the updated function
-            const groupGames = await getGroupGames(group.id, group.name);
+            const groupGames = await getGroupGames(group.id);
             allGroupGames = allGroupGames.concat(groupGames);
         } catch (groupError) {
             console.error(`Failed to fetch games for group ${group.id} (${group.name}). Error:`, groupError.message);
-            // Continue to the next group without crashing
         }
     }
 
@@ -183,7 +165,7 @@ app.get("/games/:identifier", async (req, res) => {
       username: username,
       userId: userId,
       totalGames: allGames.length,
-      ownedGroups: ownedGroups, // Also return the list of owned groups
+      ownedGroups: ownedGroups,
       games: gamesWithIcons
     });
 
@@ -229,8 +211,7 @@ app.get("/gamepasses/:identifier", async (req, res) => {
     let allGroupGames = [];
     for (const group of ownedGroups) {
         try {
-            // Pass both group ID and name to the updated function
-            const groupGames = await getGroupGames(group.id, group.name);
+            const groupGames = await getGroupGames(group.id);
             allGroupGames = allGroupGames.concat(groupGames);
         } catch (groupError) {
             console.error(`Failed to fetch games for group ${group.id} (${group.name}). Error:`, groupError.message);
