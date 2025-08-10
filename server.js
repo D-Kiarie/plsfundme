@@ -115,14 +115,14 @@ async function getGameThumbnails(universeIds) {
         return {};
     }
     const thumbnailMap = {};
-    const batchSize = 100;
+    const batchSize = 50; // Reduced batch size for more reliable GET requests
 
     for (let i = 0; i < universeIds.length; i += batchSize) {
         const batch = universeIds.slice(i, i + batchSize);
         const url = `https://thumbnails.roblox.com/v1/games/thumbnails?universeIds=${batch.join(',')}&size=768x432&format=Png&isCircular=false`;
         
         try {
-            const data = await robustFetch(url); // This is a GET request, so no CSRF token is needed.
+            const data = await robustFetch(url); // This is a GET request
             if (data && data.data) {
                 data.data.forEach(thumb => {
                     if (thumb.state === "Completed") {
