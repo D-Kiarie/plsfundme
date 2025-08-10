@@ -70,19 +70,29 @@ async function getGameThumbnails(universeIds) {
         return {};
     }
     const thumbnailMap = {};
-    const batchSize = 50; // Process 50 universe IDs at a time
+    const batchSize = 100; // The API supports up to 100 IDs per request
 
     for (let i = 0; i < universeIds.length; i += batchSize) {
         const batch = universeIds.slice(i, i + batchSize);
-        const url = `https://thumbnails.roblox.com/v1/games/thumbnails?universeIds=${batch.join(',')}&size=768x432&format=Png&isCircular=false`;
+        const url = `https://thumbnails.roblox.com/v1/games/multiget/thumbnails`;
+        const body = batch.map(id => ({
+            universeId: id,
+            size: "768x432",
+            format: "Png",
+            isCircular: false
+        }));
         
         try {
-            const data = await robustFetch(url); // This is a GET request
+            const data = await robustFetch(url, {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "Accept": "application/json" },
+                body: JSON.stringify(body)
+            });
+
             if (data && data.data) {
                 data.data.forEach(thumb => {
-                    // Get the first available thumbnail for each game
-                    if (thumb.state === "Completed" && !thumbnailMap[thumb.targetId]) {
-                        thumbnailMap[thumb.targetId] = thumb.imageUrl;
+                    if (thumb.state === "Completed" && !thumbnailMap[thumb.universeId]) {
+                        thumbnailMap[thumb.universeId] = thumb.imageUrl;
                     }
                 });
             }
