@@ -14,11 +14,10 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 
-let csrfToken = ""; // To store the CSRF token
+let csrfToken = "";
 
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-// Fetches a new CSRF token from Roblox, required for POST requests
 async function fetchCsrfToken() {
     try {
         const res = await fetch('https://auth.roblox.com/v2/logout', {
@@ -108,34 +107,6 @@ async function getUserId(username) {
     return data.data[0].id;
   }
   return null;
-}
-
-async function getGameThumbnails(universeIds) {
-    if (!universeIds || universeIds.length === 0) {
-        return {};
-    }
-    const thumbnailMap = {};
-    const batchSize = 20; // Using a smaller batch size to avoid long URL errors
-
-    for (let i = 0; i < universeIds.length; i += batchSize) {
-        const batch = universeIds.slice(i, i + batchSize);
-        const url = `https://thumbnails.roblox.com/v1/games/thumbnails?universeIds=${batch.join(',')}&size=768x432&format=Png&isCircular=false`;
-        
-        try {
-            const data = await robustFetch(url); // This is a GET request
-            if (data && data.data) {
-                data.data.forEach(thumb => {
-                    if (thumb.state === "Completed") {
-                        thumbnailMap[thumb.targetId] = thumb.imageUrl;
-                    }
-                });
-            }
-        } catch (error) {
-            console.error(`Failed to fetch thumbnail batch starting at index ${i}:`, error.message);
-        }
-    }
-    
-    return thumbnailMap;
 }
 
 async function getProfileGames(userId) {
@@ -246,8 +217,6 @@ app.get("/games/:identifier", async (req, res) => {
     }
 
     const allGames = profileGames.concat(allGroupGames);
-    const universeIds = allGames.map(game => game.id);
-    const thumbnails = await getGameThumbnails(universeIds);
 
     const gamesWithAssets = allGames.map(game => ({
       universeId: game.id,
@@ -256,7 +225,7 @@ app.get("/games/:identifier", async (req, res) => {
       creator: game.creator,
       placeVisits: game.placeVisits,
       iconUrl: `rbxthumb://type=GameIcon&id=${game.id}&w=150&h=150`,
-      thumbnailUrl: thumbnails[game.id] || null
+      thumbnailUrl: `rbxthumb://type=GameThumbnail&id=${game.id}&w=768&h=432`
     }));
 
     res.json({
@@ -307,9 +276,6 @@ app.get("/groups/:identifier", async (req, res) => {
         for (const group of ownedGroups) {
             try {
                 const games = await getGroupGames(group.id);
-                const universeIds = games.map(game => game.id);
-                const thumbnails = await getGameThumbnails(universeIds);
-
                 groupsWithGames.push({
                     ...group,
                     games: games.map(game => ({
@@ -319,7 +285,7 @@ app.get("/groups/:identifier", async (req, res) => {
                       creator: game.creator,
                       placeVisits: game.placeVisits,
                       iconUrl: `rbxthumb://type=GameIcon&id=${game.id}&w=150&h=150`,
-                      thumbnailUrl: thumbnails[game.id] || null
+                      thumbnailUrl: `rbxthumb://type=GameThumbnail&id=${game.id}&w=768&h=432`
                     }))
                 });
                 await delay(250);
@@ -375,9 +341,6 @@ app.get("/all-groups/:identifier", async (req, res) => {
         for (const group of allGroups) {
             try {
                 const games = await getGroupGames(group.id);
-                const universeIds = games.map(game => game.id);
-                const thumbnails = await getGameThumbnails(universeIds);
-
                 groupsWithGames.push({
                     ...group,
                     games: games.map(game => ({
@@ -387,7 +350,7 @@ app.get("/all-groups/:identifier", async (req, res) => {
                       creator: game.creator,
                       placeVisits: game.placeVisits,
                       iconUrl: `rbxthumb://type=GameIcon&id=${game.id}&w=150&h=150`,
-                      thumbnailUrl: thumbnails[game.id] || null
+                      thumbnailUrl: `rbxthumb://type=GameThumbnail&id=${game.id}&w=768&h=432`
                     }))
                 });
                 await delay(250);
