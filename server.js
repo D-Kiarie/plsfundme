@@ -47,7 +47,7 @@ async function getProfileGames(userId) {
   return games;
 }
 
-// **FIXED**: This function now handles pagination to fetch ALL owned groups.
+// Fetches all groups a user is in and filters for owned groups.
 async function getOwnedGroups(userId) {
     let ownedGroups = [];
     let cursor = "";
@@ -66,15 +66,22 @@ async function getOwnedGroups(userId) {
     return ownedGroups;
 }
 
-// Fetches games for a specific group
-async function getGroupGames(groupId) {
+// **FIXED**: This function now uses the correct 'develop' API to get all group games.
+async function getGroupGames(groupId, groupName) {
     let games = [];
     let cursor = "";
     do {
-        const res = await fetch(`https://games.roblox.com/v2/groups/${groupId}/games?sortOrder=Asc&limit=50&cursor=${cursor}`);
+        const res = await fetch(`https://develop.roblox.com/v1/groups/${groupId}/universes?sortOrder=Asc&limit=50&cursor=${cursor}`);
         const data = await res.json();
         if (data.data) {
-            games = games.concat(data.data);
+            // Map the universe data to the same structure as user games
+            games = games.concat(data.data.map(universe => ({
+                id: universe.id,
+                name: universe.name,
+                rootPlace: { id: universe.rootPlaceId },
+                creator: { type: "Group", id: groupId, name: groupName },
+                placeVisits: universe.visits
+            })));
         }
         cursor = data.nextPageCursor || "";
     } while (cursor);
@@ -130,7 +137,8 @@ app.get("/games/:identifier", async (req, res) => {
     let allGroupGames = [];
     for (const group of ownedGroups) {
         try {
-            const groupGames = await getGroupGames(group.id);
+            // Pass both group ID and name to the updated function
+            const groupGames = await getGroupGames(group.id, group.name);
             allGroupGames = allGroupGames.concat(groupGames);
             await delay(100); // Add a small delay to be safe
         } catch (groupError) {
@@ -200,7 +208,8 @@ app.get("/gamepasses/:identifier", async (req, res) => {
     let allGroupGames = [];
     for (const group of ownedGroups) {
         try {
-            const groupGames = await getGroupGames(group.id);
+            // Pass both group ID and name to the updated function
+            const groupGames = await getGroupGames(group.id, group.name);
             allGroupGames = allGroupGames.concat(groupGames);
             await delay(100);
         } catch (groupError) {
