@@ -145,6 +145,7 @@ app.get("/games/:identifier", async (req, res) => {
         try {
             const groupGames = await getGroupGames(group.id);
             allGroupGames = allGroupGames.concat(groupGames);
+            await delay(250);
         } catch (groupError) {
             console.error(`Failed to fetch games for group ${group.id} (${group.name}). Error:`, groupError.message);
         }
