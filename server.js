@@ -5,7 +5,7 @@ const cors = require("cors");
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Access the cookie from environment variables
+// Access the cookie from environment variables - still useful for other endpoints
 const ROBLOX_COOKIE = process.env.ROBLOSECURITY_COOKIE;
 
 const corsOptions = {
@@ -22,6 +22,7 @@ async function robustFetch(url, options = {}, retries = 5, delayMs = 500) {
     ...options,
     headers: {
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+      // The cookie is included for endpoints that might benefit from it, but not strictly required for the public group games call
       'Cookie': `.ROBLOSECURITY=${ROBLOX_COOKIE}`,
       ...options.headers,
     }
@@ -120,7 +121,8 @@ async function getGroupGames(groupId) {
     let games = [];
     let cursor = "";
     do {
-        const url = `https://games.roblox.com/v2/groups/${groupId}/games?sortOrder=Asc&limit=50&cursor=${cursor}`;
+        // Using the public endpoint with accessFilter=2
+        const url = `https://games.roblox.com/v2/groups/${groupId}/games?accessFilter=2&sortOrder=Asc&limit=50&cursor=${cursor}`;
         const data = await robustFetch(url);
         if (data && data.data) {
             games = games.concat(data.data);
