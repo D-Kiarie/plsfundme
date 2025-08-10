@@ -14,18 +14,43 @@ app.use(cors(corsOptions));
 
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
+// NEW: A more resilient fetch function with retry logic
+async function robustFetch(url, options, retries = 5, delayMs = 500) {
+  for (let i = 0; i <= retries; i++) {
+    try {
+        const res = await fetch(url, options);
+        if (res.ok) {
+            return await res.json();
+        }
+        // Don't retry on client errors like 404 Not Found
+        if (res.status >= 400 && res.status < 500) {
+            throw new Error(`Client error: ${res.status}`);
+        }
+        // For server errors (5xx), wait and retry
+        console.warn(`Request to ${url} failed with status ${res.status}. Retrying in ${delayMs * (i + 1)}ms...`);
+        await delay(delayMs * (i + 1));
+    } catch (error) {
+        if (i === retries) {
+            // If all retries fail, throw the final error
+            throw new Error(`Failed to fetch from ${url} after ${retries + 1} attempts: ${error.message}`);
+        }
+        await delay(delayMs * (i + 1));
+    }
+  }
+}
+
+
 app.get("/", (req, res) => {
   res.status(200).json({ message: "Server is alive and running!" });
 });
 
 async function getUserId(username) {
-  const res = await fetch(`https://users.roblox.com/v1/usernames/users`, {
+  const data = await robustFetch(`https://users.roblox.com/v1/usernames/users`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ usernames: [username], excludeBannedUsers: true })
   });
-  const data = await res.json();
-  if (data.data && data.data.length > 0) {
+  if (data && data.data && data.data.length > 0) {
     return data.data[0].id;
   }
   return null;
@@ -36,13 +61,12 @@ async function getProfileGames(userId) {
   let games = [];
   let cursor = "";
   do {
-    const res = await fetch(`https://games.roblox.com/v2/users/${userId}/games?sortOrder=Asc&limit=50&cursor=${cursor}`);
-    const data = await res.json();
-    if (data.data) {
+    const data = await robustFetch(`https://games.roblox.com/v2/users/${userId}/games?sortOrder=Asc&limit=50&cursor=${cursor}`);
+    if (data && data.data) {
       const profileGames = data.data.filter(game => game.creator.type === "User");
       games = games.concat(profileGames);
     }
-    cursor = data.nextPageCursor || "";
+    cursor = data ? data.nextPageCursor : "";
   } while (cursor);
   return games;
 }
@@ -52,28 +76,27 @@ async function getOwnedGroups(userId) {
     let ownedGroups = [];
     let cursor = "";
     do {
-        const res = await fetch(`https://groups.roblox.com/v2/users/${userId}/groups/roles?cursor=${cursor}&limit=100&sortOrder=Asc`);
-        const data = await res.json();
-        if (data.data) {
+        const data = await robustFetch(`https://groups.roblox.com/v2/users/${userId}/groups/roles?cursor=${cursor}&limit=100&sortOrder=Asc`);
+        if (data && data.data) {
             data.data.forEach(item => {
                 if (item.role.name === 'Owner') {
                     ownedGroups.push(item.group);
                 }
             });
         }
-        cursor = data.nextPageCursor || "";
+        cursor = data ? data.nextPageCursor : "";
     } while (cursor);
     return ownedGroups;
 }
 
-// **FIXED**: This function now uses the correct 'develop' API to get all group games.
+// Fetches games (universes) for a specific group, including private ones
 async function getGroupGames(groupId, groupName) {
     let games = [];
     let cursor = "";
     do {
-        const res = await fetch(`https://develop.roblox.com/v1/groups/${groupId}/universes?sortOrder=Asc&limit=50&cursor=${cursor}`);
-        const data = await res.json();
-        if (data.data) {
+        // Note: This endpoint may require authentication (a .ROBLOSECURITY cookie) to see non-public games.
+        const data = await robustFetch(`https://develop.roblox.com/v1/groups/${groupId}/universes?sortOrder=Asc&limit=50&cursor=${cursor}`);
+        if (data && data.data) {
             // Map the universe data to the same structure as user games
             games = games.concat(data.data.map(universe => ({
                 id: universe.id,
@@ -83,7 +106,7 @@ async function getGroupGames(groupId, groupName) {
                 placeVisits: universe.visits
             })));
         }
-        cursor = data.nextPageCursor || "";
+        cursor = data ? data.nextPageCursor : "";
     } while (cursor);
     return games;
 }
@@ -93,10 +116,9 @@ async function getGamePasses(universeId) {
   let passes = [];
   let cursor = "";
   do {
-    const res = await fetch(`https://games.roblox.com/v1/games/${universeId}/game-passes?limit=100&sortOrder=Asc&cursor=${cursor}`);
-    const data = await res.json();
-    if (data.data) passes = passes.concat(data.data);
-    cursor = data.nextPageCursor || "";
+    const data = await robustFetch(`https://games.roblox.com/v1/games/${universeId}/game-passes?limit=100&sortOrder=Asc&cursor=${cursor}`);
+    if (data && data.data) passes = passes.concat(data.data);
+    cursor = data ? data.nextPageCursor : "";
   } while (cursor);
   return passes;
 }
@@ -140,7 +162,6 @@ app.get("/games/:identifier", async (req, res) => {
             // Pass both group ID and name to the updated function
             const groupGames = await getGroupGames(group.id, group.name);
             allGroupGames = allGroupGames.concat(groupGames);
-            await delay(100); // Add a small delay to be safe
         } catch (groupError) {
             console.error(`Failed to fetch games for group ${group.id} (${group.name}). Error:`, groupError.message);
             // Continue to the next group without crashing
@@ -211,7 +232,6 @@ app.get("/gamepasses/:identifier", async (req, res) => {
             // Pass both group ID and name to the updated function
             const groupGames = await getGroupGames(group.id, group.name);
             allGroupGames = allGroupGames.concat(groupGames);
-            await delay(100);
         } catch (groupError) {
             console.error(`Failed to fetch games for group ${group.id} (${group.name}). Error:`, groupError.message);
         }
