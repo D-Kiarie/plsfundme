@@ -186,6 +186,71 @@ app.get("/games/:identifier", async (req, res) => {
   }
 });
 
+app.get("/groups/:identifier", async (req, res) => {
+    try {
+        const { identifier } = req.params;
+        let userId;
+        let username;
+
+        if (/^\d+$/.test(identifier)) {
+            userId = identifier;
+            const userResponse = await fetch(`https://users.roblox.com/v1/users/${userId}`);
+            if (userResponse.ok) {
+                const userData = await userResponse.json();
+                username = userData.name;
+            } else {
+                return res.status(404).json({ error: `User with ID ${userId} not found.` });
+            }
+        } else {
+            username = identifier;
+            userId = await getUserId(username);
+        }
+
+        if (!userId) {
+            return res.status(404).json({ error: `User with username "${username}" not found.` });
+        }
+
+        let ownedGroups = [];
+        try {
+            ownedGroups = await getOwnedGroups(userId);
+        } catch (err) {
+            console.error("Failed to fetch owned groups:", err.message);
+        }
+
+        const groupsWithGames = [];
+        for (const group of ownedGroups) {
+            try {
+                const games = await getGroupGames(group.id);
+                groupsWithGames.push({
+                    ...group,
+                    games: games.map(game => ({
+                      universeId: game.id,
+                      placeId: game.rootPlace ? game.rootPlace.id : null,
+                      name: game.name,
+                      creator: game.creator,
+                      placeVisits: game.placeVisits,
+                      iconUrl: `rbxthumb://type=GameIcon&id=${game.id}&w=150&h=150`
+                    }))
+                });
+                await delay(250);
+            } catch (groupError) {
+                console.error(`Failed to fetch games for group ${group.id} (${group.name}). Error:`, groupError.message);
+                groupsWithGames.push({ ...group, games: [] });
+            }
+        }
+
+        res.json({
+            username: username,
+            userId: userId,
+            groups: groupsWithGames
+        });
+
+    } catch (err) {
+        console.error("A critical error occurred while fetching group data:", err);
+        res.status(500).json({ error: "Internal Server Error" });
+    }
+});
+
 
 app.get("/gamepasses/:identifier", async (req, res) => {
   try {
