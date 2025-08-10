@@ -14,14 +14,24 @@ app.use(cors(corsOptions));
 
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-async function robustFetch(url, options, retries = 5, delayMs = 500) {
+async function robustFetch(url, options = {}, retries = 5, delayMs = 500) {
+  const finalOptions = {
+    ...options,
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+      ...options.headers,
+    }
+  };
+
   for (let i = 0; i <= retries; i++) {
     try {
-        const res = await fetch(url, options);
+        const res = await fetch(url, finalOptions);
         if (res.ok) {
             return await res.json();
         }
         if (res.status >= 400 && res.status < 500) {
+            const errorText = await res.text();
+            console.error(`Client error response for ${url}: ${errorText}`);
             throw new Error(`Client error: ${res.status}`);
         }
         console.warn(`Request to ${url} failed with status ${res.status}. Retrying in ${delayMs * (i + 1)}ms...`);
@@ -214,6 +224,7 @@ app.get("/gamepasses/:identifier", async (req, res) => {
         try {
             const groupGames = await getGroupGames(group.id);
             allGroupGames = allGroupGames.concat(groupGames);
+            await delay(250); // Added delay for consistency
         } catch (groupError) {
             console.error(`Failed to fetch games for group ${group.id} (${group.name}). Error:`, groupError.message);
         }
