@@ -1,6 +1,7 @@
 const express = require("express");
 const fetch = require("node-fetch");
 const cors = require("cors");
+const cheerio = require('cheerio');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -14,7 +15,7 @@ app.use(cors(corsOptions));
 
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-// Using a proxy to avoid Roblox's anti-bot measures
+// Using a proxy to avoid Roblox's anti-bot measures for non-scraping requests
 const PROXY_URL = "https://roproxy.com";
 
 async function robustFetch(url, options = {}, retries = 5, delayMs = 500) {
@@ -30,7 +31,13 @@ async function robustFetch(url, options = {}, retries = 5, delayMs = 500) {
     try {
         const res = await fetch(url, finalOptions);
         if (res.ok) {
-            return await res.json();
+            // Check if response is json before parsing
+            const contentType = res.headers.get("content-type");
+            if (contentType && contentType.indexOf("application/json") !== -1) {
+                return await res.json();
+            } else {
+                return await res.text();
+            }
         }
         if (res.status >= 400 && res.status < 500) {
             const errorText = await res.text();
@@ -100,17 +107,40 @@ async function getOwnedGroups(userId) {
 }
 
 async function getGroupGames(groupId) {
-    let games = [];
-    let cursor = "";
-    do {
-        const url = `https://games.${PROXY_URL.split('//')[1]}/v2/groups/${groupId}/games?sortOrder=Asc&limit=50&cursor=${cursor}`;
-        const data = await robustFetch(url);
-        if (data && data.data) {
-            games = games.concat(data.data);
-        }
-        cursor = data ? data.nextPageCursor : "";
-    } while (cursor);
-    return games;
+    const groupPageUrl = `https://www.roblox.com/groups/${groupId}/about`;
+    const html = await robustFetch(groupPageUrl);
+
+    if (!html) {
+        console.error(`Failed to fetch group page for groupId: ${groupId}`);
+        return [];
+    }
+    
+    const $ = cheerio.load(html);
+    const pageDataScript = $('script')
+        .toArray()
+        .map(script => $(script).html())
+        .find(text => text && text.includes('groupGames_initialState'));
+
+    if (!pageDataScript) {
+        return [];
+    }
+
+    const match = pageDataScript.match(/Roblox\.GroupGames\.groupGames_initialState\s*=\s*(\{.*?\});/);
+    if (!match || !match[1]) {
+        return [];
+    }
+
+    const initialState = JSON.parse(match[1]);
+    const universeIds = initialState.games.games.map(game => game.universeId);
+
+    if (universeIds.length === 0) {
+        return [];
+    }
+
+    const gamesApiUrl = `https://games.roblox.com/v1/games?universeIds=${universeIds.join(',')}`;
+    const gamesResponse = await robustFetch(gamesApiUrl);
+
+    return gamesResponse.data || [];
 }
 
 
@@ -134,7 +164,7 @@ app.get("/games/:identifier", async (req, res) => {
 
     if (/^\d+$/.test(identifier)) {
       userId = identifier;
-      const userResponse = await fetch(`https://users.${PROXY_URL.split('//')[1]}/v1/users/${userId}`);
+      const userResponse = await fetch(`https://users.roblox.com/v1/users/${userId}`);
       if (userResponse.ok) {
         const userData = await userResponse.json();
         username = userData.name;
@@ -202,7 +232,7 @@ app.get("/groups/:identifier", async (req, res) => {
 
         if (/^\d+$/.test(identifier)) {
             userId = identifier;
-            const userResponse = await fetch(`https://users.${PROXY_URL.split('//')[1]}/v1/users/${userId}`);
+            const userResponse = await fetch(`https://users.roblox.com/v1/users/${userId}`);
             if (userResponse.ok) {
                 const userData = await userResponse.json();
                 username = userData.name;
@@ -268,7 +298,7 @@ app.get("/gamepasses/:identifier", async (req, res) => {
 
     if (/^\d+$/.test(identifier)) {
       userId = identifier;
-      const userResponse = await fetch(`https://users.${PROXY_URL.split('//')[1]}/v1/users/${userId}`);
+      const userResponse = await fetch(`https://users.roblox.com/v1/users/${userId}`);
       if (userResponse.ok) {
         const userData = await userResponse.json();
         username = userData.name;
@@ -297,7 +327,7 @@ app.get("/gamepasses/:identifier", async (req, res) => {
         try {
             const groupGames = await getGroupGames(group.id);
             allGroupGames = allGroupGames.concat(groupGames);
-            await delay(250); // Added delay for consistency
+            await delay(250); 
         } catch (groupError) {
             console.error(`Failed to fetch games for group ${group.id} (${group.name}). Error:`, groupError.message);
         }
