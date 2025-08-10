@@ -115,7 +115,7 @@ async function getGameThumbnails(universeIds) {
         return {};
     }
     const thumbnailMap = {};
-    const batchSize = 50; // Reduced batch size for more reliable GET requests
+    const batchSize = 20; // Using a smaller batch size to avoid long URL errors
 
     for (let i = 0; i < universeIds.length; i += batchSize) {
         const batch = universeIds.slice(i, i + batchSize);
