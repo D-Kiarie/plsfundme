@@ -47,18 +47,22 @@ async function getProfileGames(userId) {
   return games;
 }
 
-// Fetches all groups a user is in and filters for owned groups
+// **FIXED**: This function now handles pagination to fetch ALL owned groups.
 async function getOwnedGroups(userId) {
-    const res = await fetch(`https://groups.roblox.com/v2/users/${userId}/groups/roles`);
-    const data = await res.json();
-    const ownedGroups = [];
-    if (data.data) {
-        data.data.forEach(item => {
-            if (item.role.name === 'Owner') {
-                ownedGroups.push(item.group);
-            }
-        });
-    }
+    let ownedGroups = [];
+    let cursor = "";
+    do {
+        const res = await fetch(`https://groups.roblox.com/v2/users/${userId}/groups/roles?cursor=${cursor}&limit=100&sortOrder=Asc`);
+        const data = await res.json();
+        if (data.data) {
+            data.data.forEach(item => {
+                if (item.role.name === 'Owner') {
+                    ownedGroups.push(item.group);
+                }
+            });
+        }
+        cursor = data.nextPageCursor || "";
+    } while (cursor);
     return ownedGroups;
 }
 
