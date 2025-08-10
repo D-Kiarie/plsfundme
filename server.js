@@ -14,6 +14,9 @@ app.use(cors(corsOptions));
 
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
+// Using a proxy to avoid Roblox's anti-bot measures
+const PROXY_URL = "https://roproxy.com";
+
 async function robustFetch(url, options = {}, retries = 5, delayMs = 500) {
   const finalOptions = {
     ...options,
@@ -51,7 +54,8 @@ app.get("/", (req, res) => {
 });
 
 async function getUserId(username) {
-  const data = await robustFetch(`https://users.roblox.com/v1/usernames/users`, {
+  const url = `https://users.${PROXY_URL.split('//')[1]}/v1/usernames/users`;
+  const data = await robustFetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ usernames: [username], excludeBannedUsers: true })
@@ -66,7 +70,8 @@ async function getProfileGames(userId) {
   let games = [];
   let cursor = "";
   do {
-    const data = await robustFetch(`https://games.roblox.com/v2/users/${userId}/games?sortOrder=Asc&limit=50&cursor=${cursor}`);
+    const url = `https://games.${PROXY_URL.split('//')[1]}/v2/users/${userId}/games?sortOrder=Asc&limit=50&cursor=${cursor}`;
+    const data = await robustFetch(url);
     if (data && data.data) {
       const profileGames = data.data.filter(game => game.creator.type === "User");
       games = games.concat(profileGames);
@@ -80,7 +85,8 @@ async function getOwnedGroups(userId) {
     let ownedGroups = [];
     let cursor = "";
     do {
-        const data = await robustFetch(`https://groups.roblox.com/v2/users/${userId}/groups/roles?cursor=${cursor}&limit=100&sortOrder=Asc`);
+        const url = `https://groups.${PROXY_URL.split('//')[1]}/v2/users/${userId}/groups/roles?cursor=${cursor}&limit=100&sortOrder=Asc`;
+        const data = await robustFetch(url);
         if (data && data.data) {
             data.data.forEach(item => {
                 if (item.role.name === 'Owner') {
@@ -97,7 +103,8 @@ async function getGroupGames(groupId) {
     let games = [];
     let cursor = "";
     do {
-        const data = await robustFetch(`https://games.roblox.com/v2/groups/${groupId}/games?sortOrder=Asc&limit=50&cursor=${cursor}`);
+        const url = `https://games.${PROXY_URL.split('//')[1]}/v2/groups/${groupId}/games?sortOrder=Asc&limit=50&cursor=${cursor}`;
+        const data = await robustFetch(url);
         if (data && data.data) {
             games = games.concat(data.data);
         }
@@ -111,7 +118,8 @@ async function getGamePasses(universeId) {
   let passes = [];
   let cursor = "";
   do {
-    const data = await robustFetch(`https://games.roblox.com/v1/games/${universeId}/game-passes?limit=100&sortOrder=Asc&cursor=${cursor}`);
+    const url = `https://games.${PROXY_URL.split('//')[1]}/v1/games/${universeId}/game-passes?limit=100&sortOrder=Asc&cursor=${cursor}`;
+    const data = await robustFetch(url);
     if (data && data.data) passes = passes.concat(data.data);
     cursor = data ? data.nextPageCursor : "";
   } while (cursor);
@@ -126,7 +134,7 @@ app.get("/games/:identifier", async (req, res) => {
 
     if (/^\d+$/.test(identifier)) {
       userId = identifier;
-      const userResponse = await fetch(`https://users.roblox.com/v1/users/${userId}`);
+      const userResponse = await fetch(`https://users.${PROXY_URL.split('//')[1]}/v1/users/${userId}`);
       if (userResponse.ok) {
         const userData = await userResponse.json();
         username = userData.name;
@@ -194,7 +202,7 @@ app.get("/groups/:identifier", async (req, res) => {
 
         if (/^\d+$/.test(identifier)) {
             userId = identifier;
-            const userResponse = await fetch(`https://users.roblox.com/v1/users/${userId}`);
+            const userResponse = await fetch(`https://users.${PROXY_URL.split('//')[1]}/v1/users/${userId}`);
             if (userResponse.ok) {
                 const userData = await userResponse.json();
                 username = userData.name;
@@ -260,7 +268,7 @@ app.get("/gamepasses/:identifier", async (req, res) => {
 
     if (/^\d+$/.test(identifier)) {
       userId = identifier;
-      const userResponse = await fetch(`https://users.roblox.com/v1/users/${userId}`);
+      const userResponse = await fetch(`https://users.${PROXY_URL.split('//')[1]}/v1/users/${userId}`);
       if (userResponse.ok) {
         const userData = await userResponse.json();
         username = userData.name;
