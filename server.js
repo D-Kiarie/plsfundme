@@ -5,7 +5,6 @@ const cors = require("cors");
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Access the cookie from environment variables - still useful for other endpoints
 const ROBLOX_COOKIE = process.env.ROBLOSECURITY_COOKIE;
 
 const corsOptions = {
@@ -22,7 +21,6 @@ async function robustFetch(url, options = {}, retries = 5, delayMs = 500) {
     ...options,
     headers: {
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-      // The cookie is included for endpoints that might benefit from it
       'Cookie': `.ROBLOSECURITY=${ROBLOX_COOKIE}`,
       ...options.headers,
     }
@@ -30,26 +28,25 @@ async function robustFetch(url, options = {}, retries = 5, delayMs = 500) {
 
   for (let i = 0; i <= retries; i++) {
     try {
-        const res = await fetch(url, finalOptions);
-        if (res.ok) {
-            return await res.json();
-        }
-        if (res.status >= 400 && res.status < 500) {
-            const errorText = await res.text();
-            console.error(`Client error response for ${url}: ${errorText}`);
-            throw new Error(`Client error: ${res.status}`);
-        }
-        console.warn(`Request to ${url} failed with status ${res.status}. Retrying in ${delayMs * (i + 1)}ms...`);
-        await delay(delayMs * (i + 1));
+      const res = await fetch(url, finalOptions);
+      if (res.ok) {
+        return await res.json();
+      }
+      if (res.status >= 400 && res.status < 500) {
+        const errorText = await res.text();
+        console.error(`Client error response for ${url}: ${errorText}`);
+        throw new Error(`Client error: ${res.status}`);
+      }
+      console.warn(`Request to ${url} failed with status ${res.status}. Retrying in ${delayMs * (i + 1)}ms...`);
+      await delay(delayMs * (i + 1));
     } catch (error) {
-        if (i === retries) {
-            throw new Error(`Failed to fetch from ${url} after ${retries + 1} attempts: ${error.message}`);
-        }
-        await delay(delayMs * (i + 1));
+      if (i === retries) {
+        throw new Error(`Failed to fetch from ${url} after ${retries + 1} attempts: ${error.message}`);
+      }
+      await delay(delayMs * (i + 1));
     }
   }
 }
-
 
 app.get("/", (req, res) => {
   res.status(200).json({ message: "Server is alive and running!" });
@@ -89,7 +86,6 @@ async function getOwnedGroups(userId) {
     const ownedGroups = [];
     if (data && data.data) {
         data.data.forEach(item => {
-            // In v1, the owner has the highest rank in the group, which is 255
             if (item.role.rank === 255) {
                 ownedGroups.push(item.group);
             }
@@ -112,7 +108,6 @@ async function getGroupGames(groupId) {
     let games = [];
     let cursor = "";
     do {
-        // Using the public endpoint with accessFilter=2
         const url = `https://games.roblox.com/v2/groups/${groupId}/games?accessFilter=2&sortOrder=Asc&limit=50&cursor=${cursor}`;
         const data = await robustFetch(url);
         if (data && data.data) {
@@ -122,7 +117,6 @@ async function getGroupGames(groupId) {
     } while (cursor);
     return games;
 }
-
 
 async function getGamePasses(universeId) {
   let passes = [];
@@ -331,7 +325,6 @@ app.get("/all-groups/:identifier", async (req, res) => {
     }
 });
 
-
 app.get("/gamepasses/:identifier", async (req, res) => {
   try {
     const { identifier } = req.params;
@@ -356,35 +349,18 @@ app.get("/gamepasses/:identifier", async (req, res) => {
     }
 
     const profileGames = await getProfileGames(userId);
-    let ownedGroups = [];
-    try {
-        ownedGroups = await getOwnedGroups(userId);
-    } catch(err) {
-        console.error("Failed to fetch owned groups:", err.message);
-    }
-    
-    let allGroupGames = [];
-    for (const group of ownedGroups) {
-        try {
-            const groupGames = await getGroupGames(group.id);
-            allGroupGames = allGroupGames.concat(groupGames);
-            await delay(250); 
-        } catch (groupError) {
-            console.error(`Failed to fetch games for group ${group.id} (${group.name}). Error:`, groupError.message);
-        }
-    }
-
-    const allGames = profileGames.concat(allGroupGames);
     let allPasses = [];
 
-    for (const game of allGames) {
+    for (const game of profileGames) {
       try {
         const passes = await getGamePasses(game.id);
-        allPasses.push({
-          gameName: game.name,
-          universeId: game.id,
-          passes: passes
-        });
+        if (passes.length > 0) {
+            allPasses.push({
+              gameName: game.name,
+              universeId: game.id,
+              passes: passes
+            });
+        }
         await delay(250);
       } catch (gameError) {
         console.error(`Failed to fetch passes for game ${game.id} (${game.name}). Error:`, gameError.message);
@@ -399,7 +375,7 @@ app.get("/gamepasses/:identifier", async (req, res) => {
     res.json({
       username: username,
       userId: userId,
-      totalGames: allGames.length,
+      totalGamesWithPasses: allPasses.length,
       totalPasses: allPasses.reduce((sum, g) => sum + g.passes.length, 0),
       games: allPasses
     });
