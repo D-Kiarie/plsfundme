@@ -69,13 +69,25 @@ async function getGameThumbnails(universeIds) {
     if (!universeIds || universeIds.length === 0) {
         return {};
     }
-    const url = `https://thumbnails.roblox.com/v1/games/thumbnails?universeIds=${universeIds.join(',')}&size=768x432&format=Png`;
-    const data = await robustFetch(url);
+    const url = `https://thumbnails.roblox.com/v1/games/multiget/thumbnails`;
+    const body = universeIds.map(id => ({
+        universeId: id,
+        size: "768x432",
+        format: "Png",
+        isCircular: false
+    }));
+
+    const data = await robustFetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Accept": "application/json" },
+        body: JSON.stringify(body)
+    });
+
     const thumbnailMap = {};
     if (data && data.data) {
         data.data.forEach(thumb => {
             if (thumb.state === "Completed") {
-                thumbnailMap[thumb.targetId] = thumb.imageUrl;
+                thumbnailMap[thumb.universeId] = thumb.imageUrl;
             }
         });
     }
