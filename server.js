@@ -14,33 +14,80 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 
+let csrfToken = ""; // To store the CSRF token
+
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-async function robustFetch(url, options = {}, retries = 5, delayMs = 500) {
-  const finalOptions = {
-    ...options,
-    // Add a redirect handling policy to prevent POST requests from becoming GET requests
-    redirect: 'follow', 
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-      'Cookie': `.ROBLOSECURITY=${ROBLOX_COOKIE}`,
-      ...options.headers,
+// Fetches a new CSRF token from Roblox
+async function fetchCsrfToken() {
+    try {
+        const res = await fetch('https://auth.roblox.com/v2/logout', {
+            method: 'POST',
+            headers: {
+                'Cookie': `.ROBLOSECURITY=${ROBLOX_COOKIE}`
+            }
+        });
+        const token = res.headers.get('x-csrf-token');
+        if (!token) {
+            throw new Error('Could not fetch CSRF token from response headers.');
+        }
+        csrfToken = token;
+        console.log("Successfully fetched new CSRF token.");
+        return token;
+    } catch (error) {
+        console.error("Fatal error fetching CSRF token:", error.message);
+        throw error; // Re-throw because POST requests will fail without it.
     }
-  };
+}
+
+async function robustFetch(url, options = {}, retries = 5, delayMs = 500) {
+  // Ensure we have a CSRF token for POST requests before starting the loop.
+  if (options.method === 'POST' && !csrfToken) {
+    await fetchCsrfToken();
+  }
 
   for (let i = 0; i <= retries; i++) {
+    // Set up headers for the current attempt
+    const finalOptions = {
+        ...options,
+        redirect: 'follow',
+        headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Cookie': `.ROBLOSECURITY=${ROBLOX_COOKIE}`,
+            ...options.headers,
+        }
+    };
+
+    // Add the current CSRF token to POST request headers
+    if (options.method === 'POST') {
+        finalOptions.headers['x-csrf-token'] = csrfToken;
+    }
+
     try {
       const res = await fetch(url, finalOptions);
+
+      // Handle CSRF token expiry/invalidation
+      if (res.status === 403 && res.headers.get('x-csrf-token')) {
+          console.log("CSRF token rejected. Fetching a new one...");
+          await fetchCsrfToken(); // Fetches and updates the global csrfToken
+          console.log(`Retrying request (attempt ${i + 1}/${retries + 1})...`);
+          await delay(delayMs);
+          continue; // The next loop iteration will use the new token
+      }
+
       if (res.ok) {
         return await res.json();
       }
+
       if (res.status >= 400 && res.status < 500) {
         const errorText = await res.text();
         console.error(`Client error response for ${url}: ${errorText}`);
         throw new Error(`Client error: ${res.status}`);
       }
+
       console.warn(`Request to ${url} failed with status ${res.status}. Retrying in ${delayMs * (i + 1)}ms...`);
       await delay(delayMs * (i + 1));
+
     } catch (error) {
       if (i === retries) {
         throw new Error(`Failed to fetch from ${url} after ${retries + 1} attempts: ${error.message}`);
@@ -72,7 +119,7 @@ async function getGameThumbnails(universeIds) {
         return {};
     }
     const thumbnailMap = {};
-    const batchSize = 100; // The API supports up to 100 IDs per request
+    const batchSize = 100;
 
     for (let i = 0; i < universeIds.length; i += batchSize) {
         const batch = universeIds.slice(i, i + batchSize);
