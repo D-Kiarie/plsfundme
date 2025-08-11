@@ -225,7 +225,7 @@ app.get("/games/:identifier", async (req, res) => {
       creator: game.creator,
       placeVisits: game.placeVisits,
       iconUrl: `rbxthumb://type=GameIcon&id=${game.id}&w=150&h=150`,
-      thumbnailUrl: `rbxthumb://type=GameThumbnail&id=${game.id}&w=768&h=432`
+      thumbnailUrl: `rbxthumb://type=GameThumbnail&id=${placeId}&w=768&h=432`
     }));
 
     res.json({
@@ -285,7 +285,7 @@ app.get("/groups/:identifier", async (req, res) => {
                       creator: game.creator,
                       placeVisits: game.placeVisits,
                       iconUrl: `rbxthumb://type=GameIcon&id=${game.id}&w=150&h=150`,
-                      thumbnailUrl: `rbxthumb://type=GameThumbnail&id=${game.id}&w=768&h=432`
+                      thumbnailUrl: `rbxthumb://type=GameThumbnail&id=${placeId}&w=768&h=432`
                     }))
                 });
                 await delay(250);
@@ -350,7 +350,7 @@ app.get("/all-groups/:identifier", async (req, res) => {
                       creator: game.creator,
                       placeVisits: game.placeVisits,
                       iconUrl: `rbxthumb://type=GameIcon&id=${game.id}&w=150&h=150`,
-                      thumbnailUrl: `rbxthumb://type=GameThumbnail&id=${game.id}&w=768&h=432`
+                      thumbnailUrl: `rbxthumb://type=GameThumbnail&id=${placeId}&w=768&h=432`
                     }))
                 });
                 await delay(250);
