@@ -1,35 +1,23 @@
-# render.yaml
-# This file defines the services for your Render deployment.
-# Place this file in the root of your GitHub repository.
-
 services:
   # A Web Service for your Node.js API
   - type: web
     name: roblox-api-backend
-    # Use 'node' for Node.js.
     runtime: node
-    # The branch to deploy from
     branch: main
-    # The command to install dependencies
     buildCommand: "npm install"
-    # The command to start your server
-    startCommand: "node index.js"
-    # Health check path to ensure the service is running
+    # Use the npm start script from package.json
+    startCommand: "npm start"
     healthCheckPath: "/"
 
   # A Static Site for your HTML/JS Frontend
   - type: static
     name: roblox-frontend
-    # The branch to deploy from
     branch: main
-    # The directory where your static files are located.
-    # It's good practice to put frontend files in a 'public' folder.
     staticPublishPath: ./public
-    # Rewrite rules to proxy API requests from the frontend to the backend
     routes:
       - type: rewrite
-        # Match any request starting with /gamepasses/
         source: /gamepasses/:username
-        # Forward it to your backend service
         destination: https://roblox-api-backend.onrender.com/gamepasses/:username
-
+      - type: rewrite
+        source: /games/:username
+        destination: https://roblox-api-backend.onrender.com/games/:username
